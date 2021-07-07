@@ -2,7 +2,6 @@ package org.ihtsdo.otf.dao.s3.helper;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.model.*;
-
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.io.IOUtils;
 import org.ihtsdo.otf.dao.s3.S3Client;
@@ -17,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @Repository
@@ -53,16 +53,31 @@ public class FileHelper {
 		s3Client.putObject(putRequest);
 	}
 
+	public void putFile(InputStream fileStream, long fileSize, String targetFilePath, Tag... tags) {
+		LOGGER.debug("Putting file to {}/{}.", bucketName, targetFilePath);
+		S3PutRequestBuilder s3PutRequestBuilder = s3ClientHelper.newPutRequest(bucketName, targetFilePath, fileStream);
+		S3PutRequestBuilder length = s3PutRequestBuilder.length(fileSize);
+		S3PutRequestBuilder putRequest = length.useBucketAcl();
+		withTagging(s3PutRequestBuilder, tags);
+		s3Client.putObject(putRequest);
+	}
+
 	public void putFile(InputStream fileStream, String targetFilePath) {
+		LOGGER.debug("Putting file to {}/{}.", bucketName, targetFilePath);
 		S3PutRequestBuilder putRequest = s3ClientHelper.newPutRequest(bucketName, targetFilePath, fileStream).useBucketAcl();
-		LOGGER.debug("Putting file to {}/{}", bucketName, targetFilePath);
+		s3Client.putObject(putRequest);
+	}
+
+	public void putFile(InputStream fileStream, String targetFilePath, Tag... tags) {
+		LOGGER.debug("Putting file to {}/{}.", bucketName, targetFilePath);
+		S3PutRequestBuilder putRequest = s3ClientHelper.newPutRequest(bucketName, targetFilePath, fileStream).useBucketAcl();
+		withTagging(putRequest, tags);
 		s3Client.putObject(putRequest);
 	}
 
 	public String putFile(File file, String targetFilePath) throws NoSuchAlgorithmException, IOException, DecoderException {
 		return putFile(file, targetFilePath, false);
 	}
-
 
 	public String putFile(File file, String targetFilePath, boolean calcMD5) throws NoSuchAlgorithmException, IOException, DecoderException {
 
@@ -86,6 +101,48 @@ public class FileHelper {
 				File md5File = FileUtils.createMD5File(file, localMd5);
 				InputStream isMD5 = new FileInputStream(md5File);
 				S3PutRequestBuilder md5PutRequest = s3ClientHelper.newPutRequest(bucketName, md5TargetPath, isMD5).length(md5File.length())
+						.useBucketAcl();
+				s3Client.putObject(md5PutRequest);
+			}
+		} finally {
+			IOUtils.closeQuietly(is);
+		}
+
+		return md5Received;
+	}
+
+	private void withTagging(S3PutRequestBuilder s3PutRequestBuilder, Tag... tag) {
+		if (tag != null) {
+			List<Tag> tags = Arrays.asList(tag);
+			s3PutRequestBuilder.withTagging(new ObjectTagging(tags));
+		}
+	}
+
+	public String putFile(File file, String targetFilePath, boolean calcMD5, Tag... tags) throws NoSuchAlgorithmException, IOException, DecoderException {
+
+		InputStream is = new FileInputStream(file);
+		String md5Received = "MD5 not received";
+		try {
+			S3PutRequestBuilder s3PutRequestBuilder = s3ClientHelper.newPutRequest(bucketName, targetFilePath, is);
+			withTagging(s3PutRequestBuilder, tags);
+			S3PutRequestBuilder putRequest = s3PutRequestBuilder.length(file.length()).useBucketAcl();
+			String localMd5 = null;
+			if (calcMD5) {
+				localMd5 = FileUtils.calculateMD5(file);
+				putRequest.withMD5(localMd5);
+			}
+			PutObjectResult putResult = s3Client.putObject(putRequest);
+			md5Received = (putResult == null ? null : putResult.getContentMd5());
+			LOGGER.debug("S3Client put request returned MD5: " + md5Received);
+
+			if (calcMD5) {
+				// Also upload the hex encoded (ie normal) md5 digest in a file
+				String md5TargetPath = targetFilePath + ".md5";
+				File md5File = FileUtils.createMD5File(file, localMd5);
+				InputStream isMD5 = new FileInputStream(md5File);
+				s3PutRequestBuilder = s3ClientHelper.newPutRequest(bucketName, md5TargetPath, isMD5);
+				withTagging(s3PutRequestBuilder, tags);
+				S3PutRequestBuilder md5PutRequest = s3PutRequestBuilder.length(md5File.length())
 						.useBucketAcl();
 				s3Client.putObject(md5PutRequest);
 			}
@@ -135,10 +192,21 @@ public class FileHelper {
 	 * @param targetPath
 	 */
 	public void copyFile(String sourcePath, String targetPath) {
-		LOGGER.debug("Copy file '{}' to '{}'", sourcePath, targetPath);
+		LOGGER.debug("Copy file from '{}' to '{}'.", sourcePath, targetPath);
 		s3Client.copyObject(bucketName, sourcePath, bucketName, targetPath);
 	}
 
+	/**
+	 * Copies a file from one S3 location to another.
+	 *
+	 * @param sourcePath
+	 * @param targetPath
+	 * @param tags       Tags to associate with new, copied file.
+	 */
+	public void copyFile(String sourcePath, String targetPath, Tag... tags) {
+		LOGGER.debug("Copy file from '{}' to '{}'.", sourcePath, targetPath);
+		s3Client.copyObject(bucketName, sourcePath, bucketName, targetPath, tags);
+	}
 
 	/**
 	 * Copies a file from one S3 location to another
@@ -147,7 +215,7 @@ public class FileHelper {
 	 * @param targetPath   target path
 	 */
 	public void copyFile(String sourcePath, String targetBucket, String targetPath) {
-		LOGGER.debug("Copy file '{}' to  bucket '{}' as file name'{}'", sourcePath, targetBucket, targetPath);
+		LOGGER.debug("Copy file from '{}' to  bucket '{}' as file name'{}'", sourcePath, targetBucket, targetPath);
 		s3Client.copyObject(bucketName, sourcePath, targetBucket, targetPath);
 	}
 

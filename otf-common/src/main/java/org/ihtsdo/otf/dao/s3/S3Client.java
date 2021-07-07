@@ -18,9 +18,13 @@ public interface S3Client {
 
 	PutObjectResult putObject(String bucketName, String key, InputStream input, ObjectMetadata metadata) throws AmazonClientException;
 
+	PutObjectResult putObject(String bucketName, String key, InputStream input, ObjectMetadata metadata, Tag... tags) throws AmazonClientException;
+
 	PutObjectResult putObject(PutObjectRequest putRequest) throws AmazonClientException;
 
 	CopyObjectResult copyObject(String sourceBucketName, String sourceKey, String destinationBucketName, String destinationKey) throws AmazonClientException;
+
+	CopyObjectResult copyObject(String sourceBucketName, String sourceKey, String destinationBucketName, String destinationKey, Tag... tags) throws AmazonClientException;
 
 	void deleteObject(String bucketName, String key) throws AmazonClientException;
 

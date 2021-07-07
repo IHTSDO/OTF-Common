@@ -3,7 +3,6 @@ package org.ihtsdo.otf.dao.s3;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.model.*;
-
 import org.apache.commons.lang.NotImplementedException;
 import org.ihtsdo.otf.utils.FileUtils;
 import org.slf4j.Logger;
@@ -165,6 +164,11 @@ public class OfflineS3ClientImpl implements S3Client, TestS3Client {
 	}
 
 	@Override
+	public PutObjectResult putObject(String bucketName, String key, InputStream input, ObjectMetadata metadata, Tag... tags) throws AmazonClientException {
+		return putObject(bucketName, key, input, metadata);
+	}
+
+	@Override
 	public PutObjectResult putObject(PutObjectRequest putRequest) throws AmazonClientException {
 		String bucketName = putRequest.getBucketName();
 		String key = putRequest.getKey();
@@ -192,6 +196,11 @@ public class OfflineS3ClientImpl implements S3Client, TestS3Client {
 		S3Object object = getObject(sourceBucketName, sourceKey);
 		putObject(destinationBucketName, destinationKey, object.getObjectContent(), null);
 		return null;
+	}
+
+	@Override
+	public CopyObjectResult copyObject(String sourceBucketName, String sourceKey, String destinationBucketName, String destinationKey, Tag... tags) throws AmazonClientException {
+		return copyObject(sourceBucketName, sourceKey, destinationBucketName, destinationKey);
 	}
 
 	@Override

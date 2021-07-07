@@ -3,14 +3,12 @@ package org.ihtsdo.otf.dao.s3;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.PutObjectResult;
-import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.*;
 import org.apache.commons.io.FileUtils;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class S3ClientImpl extends AmazonS3Client implements S3Client {
 
@@ -32,6 +30,17 @@ public class S3ClientImpl extends AmazonS3Client implements S3Client {
 		}
 	}
 
+	@Override
+	public PutObjectResult putObject(String bucketName, String key, InputStream input, ObjectMetadata metadata, Tag... tags) throws AmazonClientException {
+		PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, key, input, metadata);
+		if (tags != null) {
+			ObjectTagging objectTagging = new ObjectTagging(Arrays.asList(tags));
+			putObjectRequest.withTagging(objectTagging);
+		}
+
+		return putObject(putObjectRequest);
+	}
+
 	public PutObjectResult putObject(PutObjectRequest putRequest) throws AmazonClientException {
 		// If we have an inputstream, modify the putRequest with a file of known size instead
 		if (putRequest.getFile() == null && putRequest.getInputStream() != null) {
@@ -43,6 +52,17 @@ public class S3ClientImpl extends AmazonS3Client implements S3Client {
 			return result;
 		}
 		return super.putObject(putRequest);
+	}
+
+	@Override
+	public CopyObjectResult copyObject(String sourceBucketName, String sourceKey, String destinationBucketName, String destinationKey, Tag... tags) throws AmazonClientException {
+		CopyObjectRequest copyObjectRequest = new CopyObjectRequest(sourceBucketName, sourceKey, destinationBucketName, destinationKey);
+		if (tags != null) {
+			ObjectTagging objectTagging = new ObjectTagging(Arrays.asList(tags));
+			copyObjectRequest.withNewObjectTagging(objectTagging);
+		}
+
+		return copyObject(copyObjectRequest);
 	}
 
 	private File cacheLocally(InputStream inputStream, String key) throws AmazonClientException {
